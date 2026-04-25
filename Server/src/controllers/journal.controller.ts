@@ -3,6 +3,7 @@ import type { AuthRequest } from "../middleware/auth.middleware.js";
 import { JournalEntry } from "../models/JournalEntry.js";
 import { assessRisk } from "../services/riskDetector.js";
 import { processJournalAchievements } from "../services/achievementService.js";
+import { analyzeJournalText } from "../services/mlJournal.service.js";
 import mongoose from "mongoose";
 
 
@@ -44,14 +45,18 @@ export async function createEntry(req: AuthRequest, res: Response) {
       return res.status(400).json({ message: "title and content are required" });
     }
 
-    const entry = await JournalEntry.create({
+ const textForMl = `${title.trim()}\n\n${content.trim()}`;
+
+const mlResult = await analyzeJournalText(textForMl);
+
+const entry = await JournalEntry.create({
   userId: req.userId,
   title: title.trim(),
   content: content.trim(),
   riskLevel: risk.riskLevel,
   riskReasons: risk.reasons,
   riskAssessedAt: new Date(),
-  ml: { status: "pending", source: "journal" },
+  ml: mlResult,
 });
 
     // Fire and forget — process achievements without blocking the response
@@ -112,21 +117,26 @@ export async function markJournalForAnalysis(req: AuthRequest, res: Response) {
       return res.status(400).json({ message: "Invalid entry id" });
     }
 
-    const entry = await JournalEntry.findOneAndUpdate(
-      { _id: id, userId: req.userId },
-      {
-        $set: {
-          ml: { status: "pending", source: "journal" },
-        },
-      },
-      { new: true }
-    );
+const entry = await JournalEntry.findOne({
+  _id: id,
+  userId: req.userId,
+});
 
-    if (!entry) {
-      return res.status(404).json({ message: "Entry not found" });
-    }
+if (!entry) {
+  return res.status(404).json({ message: "Entry not found" });
+}
 
-    return res.json({ message: "Marked for analysis", ml: entry.ml });
+const textForMl = `${entry.title}\n\n${entry.content}`;
+
+const mlResult = await analyzeJournalText(textForMl);
+
+entry.set("ml", mlResult);
+await entry.save();
+
+return res.json({
+  message: "Marked for analysis",
+  ml: entry.ml,
+});
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
