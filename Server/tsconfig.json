@@ -1,20 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "nodenext",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
     "rootDir": "./src",
-    "strict": false,
+    "outDir": "./dist",
+
+    "strict": true,
+
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "moduleResolution": "nodenext"
+
+    "types": ["node"],
+
+    "lib": ["ES2022"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+
+  "include": ["src"]
 }
