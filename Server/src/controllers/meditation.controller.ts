@@ -9,20 +9,18 @@ export async function logMeditationSession(req: AuthRequest, res: Response) {
 
     const { title, minutes } = req.body as { title?: string; minutes?: number };
 
-    if (!title?.trim() || !minutes || minutes <= 0) {
+    if (!title?.trim() || !minutes || minutes < 0.1) {
       return res.status(400).json({ message: "title and minutes are required" });
     }
 
     const doc = await MeditationSession.create({
       userId: req.userId,
       title: title.trim(),
-      minutes,
+      minutes: Math.round(minutes * 10) / 10,
     });
 
     // Fire and forget — process achievements without blocking the response
-    processMeditationAchievements(req.userId).catch((err) =>
-      console.error("Achievement processing error:", err)
-    );
+    const unlockedAchievements = await processMeditationAchievements(req.userId);
 
     return res.status(201).json({
       message: "Meditation logged",
@@ -32,6 +30,7 @@ export async function logMeditationSession(req: AuthRequest, res: Response) {
         minutes: doc.minutes,
         createdAt: doc.createdAt,
       },
+      unlockedAchievements,
     });
   } catch (err) {
     console.error(err);

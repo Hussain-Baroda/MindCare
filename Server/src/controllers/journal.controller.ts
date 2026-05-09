@@ -5,7 +5,57 @@ import { assessRisk } from "../services/riskDetector.js";
 import { processJournalAchievements } from "../services/achievementService.js";
 import { analyzeJournalText } from "../services/mlJournal.service.js";
 import mongoose from "mongoose";
+import { CrisisSettings } from "../models/CrisisSettings.js";
+import { TrustedContact } from "../models/TrustedContact.js";
+import { PendingCrisisAlert } from "../models/PendingCrisisAlert.js";
+import { User } from "../models/User.js";
 
+async function scheduleJournalCrisisAlert(userId: string) {
+  const settings = await CrisisSettings.findOne({ userId });
+
+  const contacts = await TrustedContact.find({ userId }).limit(3);
+  if (contacts.length === 0) return { status: "missing_contact" as const };
+
+  if (settings && !settings.enabled) {
+    settings.enabled = true;
+    settings.mode = "auto";
+    await settings.save();
+  }
+
+  const cooldownMinutes = 10;
+  const cutoff = new Date(Date.now() - cooldownMinutes * 60 * 1000);
+  const recentAlert = await PendingCrisisAlert.findOne({
+    userId,
+    status: { $in: ["pending", "sent"] },
+    createdAt: { $gte: cutoff },
+  } as any).sort({ createdAt: -1 });
+
+  if (recentAlert) return { status: "cooldown" as const };
+
+  await PendingCrisisAlert.updateMany(
+    { userId, status: "pending" },
+    { $set: { status: "cancelled" } }
+  );
+
+  const delaySeconds = settings?.delaySeconds ?? 30;
+  const user = await User.findById(userId).select("name");
+  const alert = await PendingCrisisAlert.create({
+    userId,
+    status: "pending",
+    triggeredAt: new Date(),
+    sendAt: new Date(Date.now() + delaySeconds * 1000),
+    userName: user?.name || "A MindCare user",
+    timezone: "IST",
+    delaySeconds,
+  });
+
+  return {
+    status: "scheduled" as const,
+    alertId: alert._id,
+    sendAt: alert.sendAt,
+    delaySeconds,
+  };
+}
 
 
 export async function deleteEntry(req: AuthRequest, res: Response) {
@@ -48,6 +98,10 @@ export async function createEntry(req: AuthRequest, res: Response) {
  const textForMl = `${title.trim()}\n\n${content.trim()}`;
 
 const mlResult = await analyzeJournalText(textForMl);
+if (risk.riskLevel === "high") {
+  mlResult.score = 1;
+  mlResult.emotionType = "negative";
+}
 
 const entry = await JournalEntry.create({
   userId: req.userId,
@@ -60,9 +114,12 @@ const entry = await JournalEntry.create({
 });
 
     // Fire and forget — process achievements without blocking the response
-    processJournalAchievements(req.userId).catch((err) =>
-      console.error("Achievement processing error:", err)
-    );
+    const crisisAlert =
+      risk.riskLevel === "high"
+        ? await scheduleJournalCrisisAlert(req.userId)
+        : { status: "not_needed" as const };
+
+    const unlockedAchievements = await processJournalAchievements(req.userId);
 
     return res.status(201).json({
       message: "Entry saved",
@@ -75,6 +132,8 @@ const entry = await JournalEntry.create({
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       },
+      unlockedAchievements,
+      crisisAlert,
     });
   } catch (err) {
     console.error(err);

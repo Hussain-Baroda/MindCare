@@ -40,6 +40,34 @@ function computeScore(answers: Record<string, string>): number | null {
   return Math.round(avg * 10) / 10;
 }
 
+function getMlScore(ml: unknown): number | null {
+  const score = (ml as { score?: unknown } | undefined)?.score;
+  return typeof score === "number" && Number.isFinite(score)
+    ? Math.round(score * 10) / 10
+    : null;
+}
+
+function normalizeMlScore(ml: unknown): number | null {
+  const rawScore = getMlScore(ml);
+  if (rawScore === null) return null;
+  if (rawScore >= 0 && rawScore <= 10) return rawScore;
+
+  const normalized = ((Math.max(-3, Math.min(3, rawScore)) + 3) / 6) * 10;
+  return Math.round(normalized * 10) / 10;
+}
+
+function getAssessmentScore(mood: { answers: unknown; ml?: unknown }): number | null {
+  return (
+    normalizeMlScore(mood.ml) ??
+    computeScore(mood.answers as Record<string, string>)
+  );
+}
+
+function getJournalScore(journal: { riskLevel?: unknown; ml?: unknown }): number | null {
+  if (journal.riskLevel === "high") return 1;
+  return normalizeMlScore(journal.ml);
+}
+
 function getDaysAgo(days: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -84,21 +112,35 @@ export async function getMoodTrends(req: AuthRequest, res: Response) {
       const oid = new mongoose.Types.ObjectId(req.userId!);
       const since = getDaysAgo(period);
 
-      const moods = await MoodAssessment.find({
-        userId: oid,
-        createdAt: { $gte: since },
-      })
-        .sort({ createdAt: 1 })
-        .select("answers notes createdAt");
+      const [moods, journals] = await Promise.all([
+        MoodAssessment.find({
+          userId: oid,
+          createdAt: { $gte: since },
+        })
+          .sort({ createdAt: 1 })
+          .select("answers notes ml createdAt"),
+        JournalEntry.find({
+          userId: oid,
+          createdAt: { $gte: since },
+          "ml.status": "completed",
+        })
+          .sort({ createdAt: 1 })
+          .select("ml riskLevel createdAt"),
+      ]);
 
       // Daily aggregated mood scores
       const dailyMap: Record<string, { scores: number[]; count: number }> = {};
 
-      for (const m of moods) {
-        const score = computeScore(m.answers as Record<string, string>);
+      const trendPoints = [
+        ...moods.map((m) => ({ date: m.createdAt, score: getAssessmentScore(m) })),
+        ...journals.map((j) => ({ date: j.createdAt, score: getJournalScore(j) })),
+      ];
+
+      for (const point of trendPoints) {
+        const score = point.score;
         if (score === null) continue;
 
-        const dateStr = new Date(m.createdAt).toISOString().slice(0, 10);
+        const dateStr = new Date(point.date).toISOString().slice(0, 10);
         if (!dailyMap[dateStr]) dailyMap[dateStr] = { scores: [], count: 0 };
         dailyMap[dateStr].scores.push(score);
         dailyMap[dateStr].count++;
@@ -115,8 +157,20 @@ export async function getMoodTrends(req: AuthRequest, res: Response) {
       // Emotion frequency distribution
       const emotionFreq: Record<string, number> = {};
       for (const m of moods) {
+        const emotion = (m.ml as { primaryEmotion?: unknown } | undefined)?.primaryEmotion;
+        if (typeof emotion === "string" && emotion.trim()) {
+          emotionFreq[emotion] = (emotionFreq[emotion] || 0) + 1;
+          continue;
+        }
+
         for (const answer of Object.values(m.answers as Record<string, string>)) {
           emotionFreq[answer] = (emotionFreq[answer] || 0) + 1;
+        }
+      }
+      for (const j of journals) {
+        const emotion = (j.ml as { primaryEmotion?: unknown } | undefined)?.primaryEmotion;
+        if (typeof emotion === "string" && emotion.trim()) {
+          emotionFreq[emotion] = (emotionFreq[emotion] || 0) + 1;
         }
       }
 
@@ -127,10 +181,10 @@ export async function getMoodTrends(req: AuthRequest, res: Response) {
 
       // Weekly averages
       const weeklyMap: Record<string, { scores: number[]; count: number }> = {};
-      for (const m of moods) {
-        const score = computeScore(m.answers as Record<string, string>);
+      for (const point of trendPoints) {
+        const score = point.score;
         if (score === null) continue;
-        const d = new Date(m.createdAt);
+        const d = new Date(point.date);
         // ISO week key
         const weekStart = new Date(d);
         weekStart.setDate(d.getDate() - ((d.getDay() + 6) % 7));
@@ -171,7 +225,7 @@ export async function getTriggers(req: AuthRequest, res: Response) {
         createdAt: { $gte: since },
       })
         .sort({ createdAt: 1 })
-        .select("answers createdAt");
+        .select("answers ml createdAt");
 
       // Identify low-mood days and high-mood days
       const lowMoodThreshold = 4;
@@ -181,7 +235,7 @@ export async function getTriggers(req: AuthRequest, res: Response) {
       const highMoodEmotions: Record<string, number> = {};
 
       for (const m of moods) {
-        const score = computeScore(m.answers as Record<string, string>);
+        const score = getAssessmentScore(m);
         if (score === null) continue;
 
         const answers = m.answers as Record<string, string>;
@@ -234,20 +288,26 @@ export async function getInsights(req: AuthRequest, res: Response) {
     const since30 = getDaysAgo(30);
     const since7 = getDaysAgo(7);
 
-    const [moods7, moods30, meditationCount, journalCount, streaks, achievements] = await Promise.all([
-      MoodAssessment.find({ userId: oid, createdAt: { $gte: since7 } }).select("answers createdAt"),
-      MoodAssessment.find({ userId: oid, createdAt: { $gte: since30 } }).select("answers createdAt"),
+    const [moods7, moods30, journals7, journals30, meditationCount, journalCount, streaks, achievements] = await Promise.all([
+      MoodAssessment.find({ userId: oid, createdAt: { $gte: since7 } }).select("answers ml createdAt"),
+      MoodAssessment.find({ userId: oid, createdAt: { $gte: since30 } }).select("answers ml createdAt"),
+      JournalEntry.find({ userId: oid, createdAt: { $gte: since7 }, "ml.status": "completed" }).select("ml riskLevel createdAt"),
+      JournalEntry.find({ userId: oid, createdAt: { $gte: since30 }, "ml.status": "completed" }).select("ml riskLevel createdAt"),
       MeditationSession.countDocuments({ userId: oid, createdAt: { $gte: since30 } }),
       JournalEntry.countDocuments({ userId: oid, createdAt: { $gte: since30 } }),
       UserStreak.findOne({ userId: oid }),
       Achievement.countDocuments({ userId: oid }),
     ]);
 
-    const scores7 = moods7
-      .map((m) => computeScore(m.answers as Record<string, string>))
+    const scores7 = [
+      ...moods7.map((m) => getAssessmentScore(m)),
+      ...journals7.map((j) => getJournalScore(j)),
+    ]
       .filter((s): s is number => s !== null);
-    const scores30 = moods30
-      .map((m) => computeScore(m.answers as Record<string, string>))
+    const scores30 = [
+      ...moods30.map((m) => getAssessmentScore(m)),
+      ...journals30.map((j) => getJournalScore(j)),
+    ]
       .filter((s): s is number => s !== null);
 
     const avg7 = scores7.length > 0 ? scores7.reduce((a, b) => a + b, 0) / scores7.length : null;
@@ -324,17 +384,35 @@ export async function getComparison(req: AuthRequest, res: Response) {
 
     const oid = new mongoose.Types.ObjectId(req.userId);
 
-    const now = new Date();
     const currentPeriodStart = getDaysAgo(30);
     const previousPeriodStart = getDaysAgo(60);
 
-    const [currentMoods, previousMoods, currentMeditation, previousMeditation, currentJournal, previousJournal] =
+    const [
+      currentMoods,
+      previousMoods,
+      currentJournalScores,
+      previousJournalScores,
+      currentMeditation,
+      previousMeditation,
+      currentJournal,
+      previousJournal,
+    ] =
       await Promise.all([
-        MoodAssessment.find({ userId: oid, createdAt: { $gte: currentPeriodStart } }).select("answers"),
+        MoodAssessment.find({ userId: oid, createdAt: { $gte: currentPeriodStart } }).select("answers ml"),
         MoodAssessment.find({
           userId: oid,
           createdAt: { $gte: previousPeriodStart, $lt: currentPeriodStart },
-        }).select("answers"),
+        }).select("answers ml"),
+        JournalEntry.find({
+          userId: oid,
+          createdAt: { $gte: currentPeriodStart },
+          "ml.status": "completed",
+        }).select("ml riskLevel"),
+        JournalEntry.find({
+          userId: oid,
+          createdAt: { $gte: previousPeriodStart, $lt: currentPeriodStart },
+          "ml.status": "completed",
+        }).select("ml riskLevel"),
         MeditationSession.countDocuments({ userId: oid, createdAt: { $gte: currentPeriodStart } }),
         MeditationSession.countDocuments({
           userId: oid,
@@ -347,16 +425,18 @@ export async function getComparison(req: AuthRequest, res: Response) {
         }),
       ]);
 
-    const calcAvg = (moods: typeof currentMoods) => {
-      const scores = moods
-        .map((m) => computeScore(m.answers as Record<string, string>))
+    const calcAvg = (moods: typeof currentMoods, journals: typeof currentJournalScores) => {
+      const scores = [
+        ...moods.map((m) => getAssessmentScore(m)),
+        ...journals.map((j) => getJournalScore(j)),
+      ]
         .filter((s): s is number => s !== null);
       if (scores.length === 0) return null;
       return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
     };
 
-    const currentAvgMood = calcAvg(currentMoods);
-    const previousAvgMood = calcAvg(previousMoods);
+    const currentAvgMood = calcAvg(currentMoods, currentJournalScores);
+    const previousAvgMood = calcAvg(previousMoods, previousJournalScores);
 
     return res.json({
       current: {
@@ -364,14 +444,14 @@ export async function getComparison(req: AuthRequest, res: Response) {
         avgMoodScore: currentAvgMood,
         meditationSessions: currentMeditation,
         journalEntries: currentJournal,
-        checkIns: currentMoods.length,
+        checkIns: currentMoods.length + currentJournalScores.length,
       },
       previous: {
         period: "30-60 days ago",
         avgMoodScore: previousAvgMood,
         meditationSessions: previousMeditation,
         journalEntries: previousJournal,
-        checkIns: previousMoods.length,
+        checkIns: previousMoods.length + previousJournalScores.length,
       },
       changes: {
         moodChange:
@@ -380,7 +460,10 @@ export async function getComparison(req: AuthRequest, res: Response) {
             : null,
         meditationChange: currentMeditation - previousMeditation,
         journalChange: currentJournal - previousJournal,
-        checkInChange: currentMoods.length - previousMoods.length,
+        checkInChange:
+          currentMoods.length +
+          currentJournalScores.length -
+          (previousMoods.length + previousJournalScores.length),
       },
     });
   } catch (err) {
@@ -418,6 +501,107 @@ export async function mlInsights(req: AuthRequest, res: Response) {
   }
 }
 
+export async function personalizedTips(req: AuthRequest, res: Response) {
+  try {
+    if (!req.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const oid = new mongoose.Types.ObjectId(req.userId);
+    const since7 = getDaysAgo(7);
+
+    const [latestMood, latestJournal, meditationSessions, journalCount] =
+      await Promise.all([
+        MoodAssessment.findOne({ userId: oid }).sort({ createdAt: -1 }).select("answers ml createdAt"),
+        JournalEntry.findOne({ userId: oid }).sort({ createdAt: -1 }).select("title ml riskLevel createdAt"),
+        MeditationSession.find({ userId: oid, createdAt: { $gte: since7 } }).select("minutes"),
+        JournalEntry.countDocuments({ userId: oid, createdAt: { $gte: since7 } }),
+      ]);
+
+    const meditationMinutes = meditationSessions.reduce(
+      (sum, session) => sum + (session.minutes || 0),
+      0
+    );
+
+    const moodScore = latestMood ? getAssessmentScore(latestMood) : null;
+    const journalScore = latestJournal ? getJournalScore(latestJournal) : null;
+    const recentScore = moodScore ?? journalScore;
+    const latestEmotion =
+      (latestMood?.ml as { primaryEmotion?: string } | undefined)?.primaryEmotion ||
+      (latestJournal?.ml as { primaryEmotion?: string } | undefined)?.primaryEmotion ||
+      null;
+
+    const tips = [];
+
+    if (recentScore !== null && recentScore <= 4) {
+      tips.push({
+        category: "Support",
+        title: "Lower the load for the next hour",
+        description:
+          "Your recent check-in suggests a heavier mood. Try one small grounding action: drink water, slow your breathing, and choose one manageable task.",
+      });
+    } else if (recentScore !== null && recentScore >= 7) {
+      tips.push({
+        category: "Momentum",
+        title: "Protect what is working",
+        description:
+          "Your recent mood signal is positive. Note what helped today so you can repeat it when your energy dips.",
+      });
+    }
+
+    if (latestEmotion) {
+      tips.push({
+        category: "Emotion",
+        title: `Work with ${latestEmotion}`,
+        description:
+          latestEmotion.toLowerCase().includes("joy") ||
+          latestEmotion.toLowerCase().includes("positive")
+            ? "Use this emotional lift for a meaningful task or a kind message to someone you trust."
+            : "Name the feeling without judging it, then write one sentence about what it may be asking for.",
+      });
+    }
+
+    if (meditationMinutes < 10) {
+      tips.push({
+        category: "Meditation",
+        title: "Try a short reset",
+        description:
+          "You have logged less than 10 minutes of meditation this week. A two-minute breathing session still counts and can steady your dashboard trend.",
+      });
+    }
+
+    if (journalCount === 0) {
+      tips.push({
+        category: "Journaling",
+        title: "Capture one honest line",
+        description:
+          "No journal entries this week yet. Write one sentence about what felt difficult and one sentence about what helped.",
+      });
+    }
+
+    if (tips.length === 0) {
+      tips.push({
+        category: "Maintenance",
+        title: "Keep the routine light",
+        description:
+          "Your recent activity looks balanced. Keep checking in, logging real meditation time, and journaling when a mood shift appears.",
+      });
+    }
+
+    return res.json({
+      generatedAt: new Date().toISOString(),
+      context: {
+        recentScore,
+        latestEmotion,
+        meditationMinutesThisWeek: meditationMinutes,
+        journalEntriesThisWeek: journalCount,
+      },
+      tips: tips.slice(0, 6),
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+}
+
 
 export async function exportReport(req: AuthRequest, res: Response) {
   try {
@@ -441,7 +625,7 @@ export async function exportReport(req: AuthRequest, res: Response) {
     ]);
 
     const moodScores = moods
-      .map((m) => ({ score: computeScore(m.answers as Record<string, string>), date: m.createdAt }))
+      .map((m) => ({ score: getAssessmentScore(m), date: m.createdAt }))
       .filter((x): x is { score: number; date: Date } => x.score !== null);
 
     const avgMood =

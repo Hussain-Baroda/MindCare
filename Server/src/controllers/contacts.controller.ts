@@ -3,6 +3,7 @@ import type { AuthRequest } from "../middleware/auth.middleware.js";
 import { TrustedContact } from "../models/TrustedContact.js";
 
 const MAX_CONTACTS = 3;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function listContacts(req: AuthRequest, res: Response) {
   if (!req.userId) return res.status(401).json({ message: "Unauthorized" });
@@ -23,6 +24,9 @@ export async function createContact(req: AuthRequest, res: Response) {
   const { name, email } = req.body as { name?: string; email?: string };
   if (!name?.trim() || !email?.trim()) {
     return res.status(400).json({ message: "name and email are required" });
+  }
+  if (!EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ message: "Please enter a valid email address" });
   }
 
   const doc = await TrustedContact.create({
@@ -46,6 +50,9 @@ export async function updateContact(req: AuthRequest, res: Response) {
   const { name, email } = req.body as { name?: string; email?: string };
   if (!name?.trim() || !email?.trim()) {
     return res.status(400).json({ message: "name and email are required" });
+  }
+  if (!EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ message: "Please enter a valid email address" });
   }
 
   const updated = await TrustedContact.findOneAndUpdate(

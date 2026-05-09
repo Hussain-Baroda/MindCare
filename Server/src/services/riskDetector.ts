@@ -8,6 +8,9 @@ const HIGH_PATTERNS: Array<{ phrase: string; regex: RegExp }> = [
   { phrase: "i can't go on", regex: /\bi\s*can('|’)t\s*go\s*on\b/i },
   { phrase: "hopeless", regex: /\bhopeless\b/i },
   { phrase: "i want to disappear", regex: /\b(i\s*want\s*to\s*disappear)\b/i },
+  { phrase: "self harm", regex: /\b(self\s*harm|hurt\s*myself|harm\s*myself)\b/i },
+  { phrase: "no reason to live", regex: /\b(no\s*reason\s*to\s*live|nothing\s*to\s*live\s*for)\b/i },
+  { phrase: "overdose", regex: /\boverdose\b/i },
 ];
 
 export function assessRisk(text: string): { riskLevel: RiskLevel; reasons: string[] } {

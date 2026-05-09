@@ -3,6 +3,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import type { AuthRequest } from "../middleware/auth.middleware.js";
+import { TrustedContact } from "../models/TrustedContact.js";
+import { CrisisSettings } from "../models/CrisisSettings.js";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function signToken(userId: string) {
   const secret = process.env.JWT_SECRET;
@@ -17,6 +21,8 @@ export async function signup(req: Request, res: Response) {
       name?: string;
       email?: string;
       password?: string;
+      trustedContactName?: string;
+      trustedContactEmail?: string;
     };
 
     if (!name || !email || !password) {
@@ -26,6 +32,18 @@ export async function signup(req: Request, res: Response) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
+    const trustedContactName = req.body.trustedContactName?.trim();
+    const trustedContactEmail = req.body.trustedContactEmail?.trim().toLowerCase();
+
+    if (trustedContactName || trustedContactEmail) {
+      if (!trustedContactName || !trustedContactEmail) {
+        return res.status(400).json({ message: "Trusted contact name and email are both required" });
+      }
+      if (!EMAIL_RE.test(trustedContactEmail)) {
+        return res.status(400).json({ message: "Trusted contact email must be valid" });
+      }
+    }
+
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) {
       return res.status(409).json({ message: "Email already registered" });
@@ -33,6 +51,28 @@ export async function signup(req: Request, res: Response) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email: email.toLowerCase(), passwordHash });
+
+    if (trustedContactName || trustedContactEmail) {
+      await TrustedContact.create({
+        userId: user._id,
+        name: trustedContactName,
+        email: trustedContactEmail,
+      });
+
+      await CrisisSettings.create({
+        userId: user._id,
+        enabled: true,
+        mode: "auto",
+        delaySeconds: 30,
+      });
+    } else {
+      await CrisisSettings.create({
+        userId: user._id,
+        enabled: false,
+        mode: "auto",
+        delaySeconds: 30,
+      });
+    }
 
     const token = signToken(user._id.toString());
 

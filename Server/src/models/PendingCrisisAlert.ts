@@ -5,7 +5,7 @@ const PendingCrisisAlertSchema = new mongoose.Schema(
     userId: { type: String, required: true, index: true },
     status: {
       type: String,
-      enum: ["pending", "cancelled", "sent"],
+      enum: ["pending", "processing", "cancelled", "sent", "failed"],
       default: "pending",
       index: true,
     },

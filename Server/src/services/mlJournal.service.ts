@@ -1,9 +1,15 @@
 import axios from "axios";
 
-export async function analyzeJournalText(text: string) {
+const DEFAULT_ML_API_URL = "https://atharva-mohite-ce-ai-mental-health-api.hf.space";
+
+export async function analyzeJournalText(
+  text: string,
+  source: "journal" | "assessment" = "journal"
+) {
   try {
+    const mlApiUrl = process.env.ML_API_URL || DEFAULT_ML_API_URL;
     const response = await axios.post(
-      "https://atharva-mohite-ce-ai-mental-health-api.hf.space/predict",
+      `${mlApiUrl.replace(/\/$/, "")}/predict`,
       { text }
     );
 
@@ -11,7 +17,7 @@ export async function analyzeJournalText(text: string) {
 
     return {
       status: "completed" as const,
-      source: "journal" as const,
+      source,
       primaryEmotion: data["Primary Emotion"],
       secondaryEmotion: data["Secondary Emotion"],
       confidence: Number(data["Confidence"]),
@@ -23,7 +29,7 @@ export async function analyzeJournalText(text: string) {
 
     return {
       status: "failed" as const,
-      source: "journal" as const,
+      source,
       error: "ML API failed",
     };
   }

@@ -12,7 +12,7 @@ const MeditationSessionSchema = new Schema<MeditationSessionDoc>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, required: true, trim: true },
-    minutes: { type: Number, required: true, min: 1, max: 180 },
+    minutes: { type: Number, required: true, min: 0.1, max: 180 },
   },
   { timestamps: true }
 );
