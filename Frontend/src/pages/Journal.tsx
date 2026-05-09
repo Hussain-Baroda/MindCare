@@ -84,12 +84,33 @@ const Journal = () => {
 
     setSaving(true);
     try {
-      await createJournalEntry(title, entry);
+      const result = await createJournalEntry(title, entry);
 
       toast({
         title: "Entry Saved!",
         description: "Your journal entry has been recorded successfully.",
       });
+
+      if (result.risk.level === "high") {
+        if (result.crisisAlert?.status === "scheduled") {
+          toast({
+            title: "Safety alert scheduled",
+            description: `A trusted contact alert will send in ${result.crisisAlert.delaySeconds}s unless cancelled from Settings.`,
+          });
+        } else if (result.crisisAlert?.status === "missing_contact") {
+          toast({
+            title: "Add a trusted contact",
+            description: "High-risk text was detected, but no trusted contact is saved yet.",
+            variant: "destructive",
+          });
+        } else if (result.crisisAlert?.status === "disabled") {
+          toast({
+            title: "Crisis alerts are off",
+            description: "High-risk text was detected. Enable crisis alerts in Settings for automatic support emails.",
+            variant: "destructive",
+          });
+        }
+      }
 
       setTitle("");
       setEntry("");

@@ -2,8 +2,9 @@ import { api } from "@/lib/api";
 
 export type DashboardSummary = {
   latestMoodScore: number | null;
-  moodSeries: { date: string; score: number }[];
+  moodSeries: { date: string; score: number; source?: "mood" | "journal" }[];
   journalThisMonth: number;
+  meditationMinutesThisWeek: number;
   meditationHoursThisWeek: number;
 };
 

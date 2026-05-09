@@ -23,6 +23,17 @@ import {
 } from "recharts";
 import { getDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
 
+function formatMinutes(minutes: number) {
+  const roundedMinutes = Math.round((minutes || 0) * 10) / 10;
+  if (!roundedMinutes) return "0 min";
+  if (roundedMinutes < 1) return `${Math.round(roundedMinutes * 60)} sec`;
+  if (roundedMinutes < 60) return `${roundedMinutes} min`;
+
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainingMinutes = Math.round(roundedMinutes % 60);
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
 const Dashboard = () => {
   const location = useLocation();
   const nav = useNavigate();
@@ -106,7 +117,7 @@ const Dashboard = () => {
   // keep hours display as you requested
   const meditationHoursDisplay = loadingSummary
     ? "..."
-    : `${summary?.meditationHoursThisWeek ?? 0}h`;
+    : formatMinutes(summary?.meditationMinutesThisWeek ?? 0);
 
   return (
     <div className="min-h-screen flex">
@@ -187,7 +198,7 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center gap-1 text-sm text-accent">
                   <TrendingUp className="w-4 h-4" />
-                  <span>Based on your latest test</span>
+                  <span>Based on mood tests and journals</span>
                 </div>
               </div>
 
@@ -237,6 +248,7 @@ const Dashboard = () => {
                       <Line
                         type="monotone"
                         dataKey="score"
+                        name="Wellness score"
                         stroke="hsl(var(--primary))"
                         strokeWidth={3}
                         dot={{ r: 3 }}

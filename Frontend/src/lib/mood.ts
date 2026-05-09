@@ -10,7 +10,7 @@ export type MoodAssessment = {
 };
 
 export async function createMoodAssessment(
-  answers: Record<number, string>,
+  answers: Record<number | string, string>,
   notes: string
 ) {
   const res = await api.post("/api/mood", { answers, notes });

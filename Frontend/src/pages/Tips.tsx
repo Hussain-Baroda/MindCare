@@ -1,6 +1,8 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Heart, Sun, Moon, Activity, Coffee, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getPersonalizedTips, type PersonalizedTip } from "@/lib/analytics";
 
 const tips = [
   {
@@ -72,6 +74,27 @@ const articles = [
 ];
 
 const Tips = () => {
+  const [personalizedTips, setPersonalizedTips] = useState<PersonalizedTip[]>([]);
+  const [loadingTips, setLoadingTips] = useState(true);
+  const [tipsError, setTipsError] = useState("");
+
+  useEffect(() => {
+    async function loadTips() {
+      try {
+        setTipsError("");
+        setLoadingTips(true);
+        const data = await getPersonalizedTips();
+        setPersonalizedTips(data.tips);
+      } catch (err: any) {
+        setTipsError(err?.response?.data?.message || "Could not load personalized tips");
+      } finally {
+        setLoadingTips(false);
+      }
+    }
+
+    loadTips();
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -86,6 +109,32 @@ const Tips = () => {
               Expert advice and practical tips for better mental health
             </p>
           </div>
+
+          <section className="mb-16">
+            <h2 className="text-2xl font-semibold mb-6">Personalized AI Tips</h2>
+            {tipsError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 mb-4">
+                {tipsError}
+              </div>
+            )}
+            {loadingTips ? (
+              <div className="text-sm text-muted-foreground">Reading your latest wellness signals...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {personalizedTips.map((tip, index) => (
+                  <div
+                    key={`${tip.title}-${index}`}
+                    className="glass-card p-6 rounded-xl hover-lift smooth-transition animate-fade-in-up border-primary/20"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <div className="text-xs text-primary font-medium mb-2">{tip.category}</div>
+                    <h3 className="text-lg font-semibold mb-2">{tip.title}</h3>
+                    <p className="text-muted-foreground text-sm">{tip.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           {/* Daily Tips */}
           <section className="mb-16">

@@ -25,9 +25,22 @@ export type JournalEntry = {
   updatedAt: string;
 };
 
+export type CrisisAlertResult =
+  | { status: "not_needed" }
+  | { status: "disabled" }
+  | { status: "missing_contact" }
+  | { status: "cooldown" }
+  | { status: "scheduled"; alertId: string; sendAt: string; delaySeconds: number };
+
 export async function createJournalEntry(title: string, content: string) {
   const res = await api.post("/api/journal", { title, content });
-  return res.data.entry as JournalEntry;
+  return res.data as {
+    message: string;
+    risk: { level: "low" | "medium" | "high"; reasons: string[] };
+    entry: JournalEntry;
+    unlockedAchievements?: string[];
+    crisisAlert?: CrisisAlertResult;
+  };
 }
 
 export async function listJournalEntries() {

@@ -2,8 +2,19 @@ import { api } from "./api";
 
 export type User = { id: string; name: string; email: string };
 
-export async function signup(name: string, email: string, password: string) {
-  const res = await api.post("/api/auth/signup", { name, email, password });
+export async function signup(
+  name: string,
+  email: string,
+  password: string,
+  trustedContact?: { name: string; email: string }
+) {
+  const res = await api.post("/api/auth/signup", {
+    name,
+    email,
+    password,
+    trustedContactName: trustedContact?.name,
+    trustedContactEmail: trustedContact?.email,
+  });
   localStorage.setItem("token", res.data.token);
   return res.data.user as User;
 }

@@ -66,6 +66,23 @@ export type LeaderboardResponse = {
   leaderboard: LeaderboardEntry[];
 };
 
+export type PersonalizedTip = {
+  category: string;
+  title: string;
+  description: string;
+};
+
+export type PersonalizedTipsResponse = {
+  generatedAt: string;
+  context: {
+    recentScore: number | null;
+    latestEmotion: string | null;
+    meditationMinutesThisWeek: number;
+    journalEntriesThisWeek: number;
+  };
+  tips: PersonalizedTip[];
+};
+
 export type UserLeaderboardStatus = {
   isPublic: boolean;
   totalPoints: number;
@@ -95,6 +112,11 @@ export async function getComparison(): Promise<ComparisonResponse> {
 
 export async function exportReport() {
   const res = await api.get("/api/analytics/export-report");
+  return res.data;
+}
+
+export async function getPersonalizedTips(): Promise<PersonalizedTipsResponse> {
+  const res = await api.get("/api/analytics/personalized-tips");
   return res.data;
 }
 

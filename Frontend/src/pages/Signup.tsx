@@ -13,6 +13,8 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [trustedContactName, setTrustedContactName] = useState("");
+  const [trustedContactEmail, setTrustedContactEmail] = useState("");
   const { toast } = useToast();
   const nav = useNavigate();
   const { refresh } = useAuth();
@@ -39,7 +41,14 @@ const Signup = () => {
     }
 
     try {
-      await apiSignup(name, email, password); // stores token
+      await apiSignup(
+        name,
+        email,
+        password,
+        trustedContactName || trustedContactEmail
+          ? { name: trustedContactName, email: trustedContactEmail }
+          : undefined
+      ); // stores token
       await refresh(); // fetches /me and sets user
       toast({ title: "Success", description: "Account created successfully" });
       nav("/dashboard", { replace: true });
@@ -129,6 +138,38 @@ const Signup = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="pl-10"
                   required
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-4 space-y-4">
+              <div>
+                <div className="font-medium">Trusted Contact</div>
+                <p className="text-xs text-muted-foreground">
+                  Optional but recommended. If high-risk journal text is detected,
+                  MindCare can send this person a safety alert.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trustedContactName">Contact Name</Label>
+                <Input
+                  id="trustedContactName"
+                  type="text"
+                  placeholder="Someone you trust"
+                  value={trustedContactName}
+                  onChange={(e) => setTrustedContactName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trustedContactEmail">Contact Email</Label>
+                <Input
+                  id="trustedContactEmail"
+                  type="email"
+                  placeholder="trusted.person@email.com"
+                  value={trustedContactEmail}
+                  onChange={(e) => setTrustedContactEmail(e.target.value)}
                 />
               </div>
             </div>
