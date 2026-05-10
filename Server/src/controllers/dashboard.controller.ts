@@ -26,9 +26,48 @@ const MOOD_SCORE_MAP: Record<string, number> = {
   Extremely: 1,
 };
 
+const LIKERT_VALUE_MAP: Record<string, number> = {
+  "Not at all": 0,
+  Slightly: 1,
+  Moderately: 2,
+  Very: 3,
+  Extremely: 4,
+};
+
+const NEGATIVE_QUESTION_PATTERNS = [
+  /stress|anxious|worried|panic|pressure|overthink|tense|overloaded|nervous|restless|overwhelmed/i,
+  /sad|low|down|drained|hopeless|disconnected|interest|crying|lonely|empty/i,
+  /angry|irritated|annoy|frustrated|aggressive|impatient|upset|shouting|arguing/i,
+  /disturbed sleep|wake.*multiple|tired|trouble sleeping|exhausted|mentally tired|lazy|unmotivated/i,
+  /avoid|isolated|doubt|failure|insecure|distractions|out of control|difficult.*relax/i,
+  /mood change|daily tasks require|affect your mood|affect your performance/i,
+];
+
+function inferQuestionDirection(question: string) {
+  if (NEGATIVE_QUESTION_PATTERNS.some((pattern) => pattern.test(question))) {
+    return "negative";
+  }
+
+  return "positive";
+}
+
 function computeScore(answers: Record<string, string>) {
-  const values = Object.values(answers)
-    .map((a) => MOOD_SCORE_MAP[a])
+  const values = Object.entries(answers)
+    .map(([question, answer]) => {
+      const direction = question.startsWith("positive:")
+        ? "positive"
+        : question.startsWith("negative:")
+          ? "negative"
+          : inferQuestionDirection(question);
+      const likertValue = LIKERT_VALUE_MAP[answer];
+
+      if (typeof likertValue === "number") {
+        const score = direction === "positive" ? likertValue : 4 - likertValue;
+        return Math.round((1 + (score / 4) * 8) * 10) / 10;
+      }
+
+      return MOOD_SCORE_MAP[answer];
+    })
     .filter((n): n is number => typeof n === "number");
 
   if (values.length === 0) return null;
@@ -54,13 +93,12 @@ function normalizeMlScore(ml: unknown): number | null {
 
 function getAssessmentScore(mood: { answers: unknown; ml?: unknown }) {
   return (
-    normalizeMlScore(mood.ml) ??
-    computeScore(mood.answers as Record<string, string>)
+    computeScore(mood.answers as Record<string, string>) ??
+    normalizeMlScore(mood.ml)
   );
 }
 
 function getJournalScore(journal: { riskLevel?: unknown; ml?: unknown }) {
-  if (journal.riskLevel === "high") return 1;
   return normalizeMlScore(journal.ml);
 }
 

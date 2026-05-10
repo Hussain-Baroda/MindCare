@@ -30,9 +30,48 @@ const MOOD_SCORE_MAP: Record<string, number> = {
   Extremely: 1,
 };
 
+const LIKERT_VALUE_MAP: Record<string, number> = {
+  "Not at all": 0,
+  Slightly: 1,
+  Moderately: 2,
+  Very: 3,
+  Extremely: 4,
+};
+
+const NEGATIVE_QUESTION_PATTERNS = [
+  /stress|anxious|worried|panic|pressure|overthink|tense|overloaded|nervous|restless|overwhelmed/i,
+  /sad|low|down|drained|hopeless|disconnected|interest|crying|lonely|empty/i,
+  /angry|irritated|annoy|frustrated|aggressive|impatient|upset|shouting|arguing/i,
+  /disturbed sleep|wake.*multiple|tired|trouble sleeping|exhausted|mentally tired|lazy|unmotivated/i,
+  /avoid|isolated|doubt|failure|insecure|distractions|out of control|difficult.*relax/i,
+  /mood change|daily tasks require|affect your mood|affect your performance/i,
+];
+
+function inferQuestionDirection(question: string) {
+  if (NEGATIVE_QUESTION_PATTERNS.some((pattern) => pattern.test(question))) {
+    return "negative";
+  }
+
+  return "positive";
+}
+
 function computeScore(answers: Record<string, string>): number | null {
-  const values = Object.values(answers)
-    .map((a) => MOOD_SCORE_MAP[a])
+  const values = Object.entries(answers)
+    .map(([question, answer]) => {
+      const direction = question.startsWith("positive:")
+        ? "positive"
+        : question.startsWith("negative:")
+          ? "negative"
+          : inferQuestionDirection(question);
+      const likertValue = LIKERT_VALUE_MAP[answer];
+
+      if (typeof likertValue === "number") {
+        const score = direction === "positive" ? likertValue : 4 - likertValue;
+        return Math.round((1 + (score / 4) * 8) * 10) / 10;
+      }
+
+      return MOOD_SCORE_MAP[answer];
+    })
     .filter((n): n is number => typeof n === "number");
 
   if (values.length === 0) return null;
@@ -58,13 +97,12 @@ function normalizeMlScore(ml: unknown): number | null {
 
 function getAssessmentScore(mood: { answers: unknown; ml?: unknown }): number | null {
   return (
-    normalizeMlScore(mood.ml) ??
-    computeScore(mood.answers as Record<string, string>)
+    computeScore(mood.answers as Record<string, string>) ??
+    normalizeMlScore(mood.ml)
   );
 }
 
 function getJournalScore(journal: { riskLevel?: unknown; ml?: unknown }): number | null {
-  if (journal.riskLevel === "high") return 1;
   return normalizeMlScore(journal.ml);
 }
 
@@ -73,6 +111,17 @@ function getDaysAgo(days: number): Date {
   d.setDate(d.getDate() - days);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function shuffleItems<T>(items: T[]): T[] {
+  const shuffled = [...items];
+
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
 }
 
 async function getCachedOrCompute<T>(
@@ -532,59 +581,187 @@ export async function personalizedTips(req: AuthRequest, res: Response) {
     const tips = [];
 
     if (recentScore !== null && recentScore <= 4) {
-      tips.push({
-        category: "Support",
-        title: "Lower the load for the next hour",
-        description:
-          "Your recent check-in suggests a heavier mood. Try one small grounding action: drink water, slow your breathing, and choose one manageable task.",
-      });
+      tips.push(
+        ...shuffleItems([
+          {
+            category: "Support",
+            title: "Lower the load for the next hour",
+            description:
+              "Your recent check-in suggests a heavier mood. Try one small grounding action: drink water, slow your breathing, and choose one manageable task.",
+          },
+          {
+            category: "Support",
+            title: "Make the next step smaller",
+            description:
+              "Choose one task that takes less than five minutes. Completing something tiny can reduce the pressure without pretending everything is easy.",
+          },
+          {
+            category: "Grounding",
+            title: "Name five steady things",
+            description:
+              "Look around and name five things you can see, four you can feel, and three you can hear. Let your body catch up before deciding what comes next.",
+          },
+        ]).slice(0, 2)
+      );
     } else if (recentScore !== null && recentScore >= 7) {
-      tips.push({
-        category: "Momentum",
-        title: "Protect what is working",
-        description:
-          "Your recent mood signal is positive. Note what helped today so you can repeat it when your energy dips.",
-      });
+      tips.push(
+        ...shuffleItems([
+          {
+            category: "Momentum",
+            title: "Protect what is working",
+            description:
+              "Your recent mood signal is positive. Note what helped today so you can repeat it when your energy dips.",
+          },
+          {
+            category: "Reflection",
+            title: "Capture the pattern",
+            description:
+              "Write down one thing that supported your mood today: sleep, movement, people, food, focus, or rest. Patterns are easier to repeat when named.",
+          },
+          {
+            category: "Connection",
+            title: "Share the good energy",
+            description:
+              "Send a quick kind message or thank-you to someone. Positive moods often last longer when they turn into connection.",
+          },
+        ]).slice(0, 2)
+      );
+    } else {
+      tips.push(
+        ...shuffleItems([
+          {
+            category: "Check-in",
+            title: "Notice the middle",
+            description:
+              "Your recent mood signal looks balanced. Take thirty seconds to notice what feels okay and what needs a little care.",
+          },
+          {
+            category: "Routine",
+            title: "Keep today simple",
+            description:
+              "Pick one supportive habit to keep steady today: water, a short walk, journaling, stretching, or a consistent bedtime.",
+          },
+          {
+            category: "Energy",
+            title: "Match effort to energy",
+            description:
+              "Before starting your next task, choose a version that fits your current energy instead of forcing the ideal version.",
+          },
+        ]).slice(0, 1)
+      );
     }
 
     if (latestEmotion) {
-      tips.push({
-        category: "Emotion",
-        title: `Work with ${latestEmotion}`,
-        description:
-          latestEmotion.toLowerCase().includes("joy") ||
-          latestEmotion.toLowerCase().includes("positive")
-            ? "Use this emotional lift for a meaningful task or a kind message to someone you trust."
-            : "Name the feeling without judging it, then write one sentence about what it may be asking for.",
-      });
+      const isPositiveEmotion =
+        latestEmotion.toLowerCase().includes("joy") ||
+        latestEmotion.toLowerCase().includes("positive") ||
+        latestEmotion.toLowerCase().includes("happy") ||
+        latestEmotion.toLowerCase().includes("calm");
+
+      tips.push(
+        ...shuffleItems([
+          {
+            category: "Emotion",
+            title: `Work with ${latestEmotion}`,
+            description: isPositiveEmotion
+              ? "Use this emotional lift for a meaningful task or a kind message to someone you trust."
+              : "Name the feeling without judging it, then write one sentence about what it may be asking for.",
+          },
+          {
+            category: "Emotion",
+            title: `Give ${latestEmotion} a little space`,
+            description: isPositiveEmotion
+              ? "Pause for a minute and notice where this feeling shows up in your body. That makes it easier to remember what helped."
+              : "Try writing three words for this feeling, then one sentence about what would make the next hour gentler.",
+          },
+          {
+            category: "Awareness",
+            title: "Track the trigger",
+            description:
+              "Think back to what happened before this emotion appeared. One small clue can make tomorrow's pattern clearer.",
+          },
+        ]).slice(0, 1)
+      );
     }
 
     if (meditationMinutes < 10) {
-      tips.push({
-        category: "Meditation",
-        title: "Try a short reset",
-        description:
-          "You have logged less than 10 minutes of meditation this week. A two-minute breathing session still counts and can steady your dashboard trend.",
-      });
+      tips.push(
+        ...shuffleItems([
+          {
+            category: "Meditation",
+            title: "Try a short reset",
+            description:
+              "You have logged less than 10 minutes of meditation this week. A two-minute breathing session still counts and can steady your dashboard trend.",
+          },
+          {
+            category: "Breathing",
+            title: "Use four slow breaths",
+            description:
+              "Inhale for four, exhale for six, and repeat four times. It is short enough to do between tasks and still gives your nervous system a cue.",
+          },
+          {
+            category: "Meditation",
+            title: "Stack meditation onto a habit",
+            description:
+              "Attach one minute of quiet breathing to something you already do, like brushing your teeth or opening your laptop.",
+          },
+        ]).slice(0, 1)
+      );
     }
 
     if (journalCount === 0) {
-      tips.push({
-        category: "Journaling",
-        title: "Capture one honest line",
-        description:
-          "No journal entries this week yet. Write one sentence about what felt difficult and one sentence about what helped.",
-      });
+      tips.push(
+        ...shuffleItems([
+          {
+            category: "Journaling",
+            title: "Capture one honest line",
+            description:
+              "No journal entries this week yet. Write one sentence about what felt difficult and one sentence about what helped.",
+          },
+          {
+            category: "Journaling",
+            title: "Use a two-line check-in",
+            description:
+              "Write: 'Right now I feel...' and 'One thing I need is...'. Keeping it small makes journaling easier to return to.",
+          },
+          {
+            category: "Reflection",
+            title: "Close the loop",
+            description:
+              "Before sleep, jot down one moment that drained you and one moment that restored you. That is enough data for today.",
+          },
+        ]).slice(0, 1)
+      );
     }
 
-    if (tips.length === 0) {
-      tips.push({
-        category: "Maintenance",
-        title: "Keep the routine light",
-        description:
-          "Your recent activity looks balanced. Keep checking in, logging real meditation time, and journaling when a mood shift appears.",
-      });
-    }
+    tips.push(
+      ...shuffleItems([
+        {
+          category: "Maintenance",
+          title: "Keep the routine light",
+          description:
+            "Keep checking in, logging real meditation time, and journaling when a mood shift appears.",
+        },
+        {
+          category: "Sleep",
+          title: "Give tomorrow a softer start",
+          description:
+            "Set out one thing tonight that makes the morning easier: water, clothes, a written task list, or a clear first step.",
+        },
+        {
+          category: "Movement",
+          title: "Add a tiny movement break",
+          description:
+            "Stand, stretch your shoulders, or walk for two minutes. Small movement can shift mood without needing a full workout.",
+        },
+        {
+          category: "Focus",
+          title: "Choose one clear finish line",
+          description:
+            "Pick a task with a visible endpoint. A clear finish line lowers mental clutter and makes progress easier to feel.",
+        },
+      ]).slice(0, Math.max(0, 5 - tips.length))
+    );
 
     return res.json({
       generatedAt: new Date().toISOString(),
@@ -594,7 +771,7 @@ export async function personalizedTips(req: AuthRequest, res: Response) {
         meditationMinutesThisWeek: meditationMinutes,
         journalEntriesThisWeek: journalCount,
       },
-      tips: tips.slice(0, 6),
+      tips: shuffleItems(tips).slice(0, 5),
     });
   } catch (err) {
     console.error(err);

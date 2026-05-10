@@ -98,10 +98,6 @@ export async function createEntry(req: AuthRequest, res: Response) {
  const textForMl = `${title.trim()}\n\n${content.trim()}`;
 
 const mlResult = await analyzeJournalText(textForMl);
-if (risk.riskLevel === "high") {
-  mlResult.score = 1;
-  mlResult.emotionType = "negative";
-}
 
 const entry = await JournalEntry.create({
   userId: req.userId,

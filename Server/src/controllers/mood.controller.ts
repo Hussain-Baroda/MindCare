@@ -19,9 +19,10 @@ export async function createMoodAssessment(req: AuthRequest, res: Response) {
   try {
     if (!req.userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const { answers, notes } = req.body as {
+    const { answers, notes, score } = req.body as {
       answers?: Record<string, string>;
       notes?: string;
+      score?: number;
     };
 
     if (!answers || Object.keys(answers).length === 0) {
@@ -32,6 +33,14 @@ export async function createMoodAssessment(req: AuthRequest, res: Response) {
       buildAssessmentText(answers, notes),
       "assessment"
     );
+    const assessmentScore =
+      typeof score === "number" && Number.isFinite(score)
+        ? Math.max(0, Math.min(10, Math.round(score * 10) / 10))
+        : null;
+
+    if (assessmentScore !== null) {
+      mlResult.score = assessmentScore;
+    }
 
     const doc = await MoodAssessment.create({
       userId: req.userId,
