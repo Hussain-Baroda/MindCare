@@ -8,6 +8,8 @@ import {
   Trophy,
   BarChart2,
   Crown,
+  User,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +24,7 @@ import {
   YAxis,
 } from "recharts";
 import { getDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
+import { getProfile, type UserProfile } from "@/lib/profile";
 
 function formatMinutes(minutes: number) {
   const roundedMinutes = Math.round((minutes || 0) * 10) / 10;
@@ -40,6 +43,7 @@ const Dashboard = () => {
   const { user, logout } = useAuth();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [summaryError, setSummaryError] = useState("");
 
@@ -63,6 +67,14 @@ const Dashboard = () => {
     } finally {
       setLoadingSummary(false);
     }
+  }, []);
+
+  useEffect(() => {
+    getProfile()
+      .then(setProfile)
+      .catch(() => {
+        setProfile(null);
+      });
   }, []);
 
   // 1) Initial load (once)
@@ -109,6 +121,7 @@ const Dashboard = () => {
     { icon: Trophy, label: "Achievements", path: "/achievements" },
     { icon: BarChart2, label: "Analytics", path: "/analytics" },
     { icon: Crown, label: "Leaderboard", path: "/leaderboard" },
+    { icon: SettingsIcon, label: "Profile", path: "/settings" },
   ];
 
   const moodScoreDisplay = loadingSummary ? "..." : summary?.latestMoodScore ?? "--";
@@ -186,6 +199,44 @@ const Dashboard = () => {
                 {summaryError}
               </div>
             )}
+
+            <div className="glass-card p-6 rounded-xl animate-fade-in-up">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <User className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Profile</div>
+                    <h3 className="text-xl font-semibold">
+                      {profile?.name || user?.name || "MindCare user"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {profile?.email || user?.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm sm:min-w-64">
+                  <div className="rounded-lg border border-border/70 p-3">
+                    <div className="text-muted-foreground">Phone</div>
+                    <div className="font-medium">{profile?.phone || "Not added"}</div>
+                  </div>
+                  <div className="rounded-lg border border-border/70 p-3">
+                    <div className="text-muted-foreground">Age</div>
+                    <div className="font-medium">{profile?.age || "Not added"}</div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/settings"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-sidebar-accent smooth-transition"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  Edit Profile
+                </Link>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up">
               <div className="glass-card p-6 rounded-xl">

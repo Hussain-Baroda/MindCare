@@ -1,8 +1,9 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Heart, Sun, Moon, Activity, Coffee, Users } from "lucide-react";
+import { Heart, Sun, Moon, Activity, Coffee, Users, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getPersonalizedTips, type PersonalizedTip } from "@/lib/analytics";
+import { Button } from "@/components/ui/button";
 
 const tips = [
   {
@@ -78,20 +79,20 @@ const Tips = () => {
   const [loadingTips, setLoadingTips] = useState(true);
   const [tipsError, setTipsError] = useState("");
 
-  useEffect(() => {
-    async function loadTips() {
-      try {
-        setTipsError("");
-        setLoadingTips(true);
-        const data = await getPersonalizedTips();
-        setPersonalizedTips(data.tips);
-      } catch (err: any) {
-        setTipsError(err?.response?.data?.message || "Could not load personalized tips");
-      } finally {
-        setLoadingTips(false);
-      }
+  async function loadTips() {
+    try {
+      setTipsError("");
+      setLoadingTips(true);
+      const data = await getPersonalizedTips();
+      setPersonalizedTips(data.tips);
+    } catch (err: any) {
+      setTipsError(err?.response?.data?.message || "Could not load personalized tips");
+    } finally {
+      setLoadingTips(false);
     }
+  }
 
+  useEffect(() => {
     loadTips();
   }, []);
 
@@ -111,7 +112,19 @@ const Tips = () => {
           </div>
 
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Personalized AI Tips</h2>
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl font-semibold">Personalized AI Tips</h2>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={loadTips}
+                disabled={loadingTips}
+                className="inline-flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingTips ? "animate-spin" : ""}`} />
+                Refresh Tips
+              </Button>
+            </div>
             {tipsError && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 mb-4">
                 {tipsError}

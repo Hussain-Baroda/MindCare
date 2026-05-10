@@ -11,9 +11,10 @@ export type MoodAssessment = {
 
 export async function createMoodAssessment(
   answers: Record<number | string, string>,
-  notes: string
+  notes: string,
+  score?: number
 ) {
-  const res = await api.post("/api/mood", { answers, notes });
+  const res = await api.post("/api/mood", { answers, notes, score });
   return res.data.assessment as MoodAssessment;
 }
 

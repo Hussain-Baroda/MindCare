@@ -13,21 +13,25 @@ import { QUESTION_BANK as NEW_QUESTION_BANK } from "../data/moodTestQuestionBank
 const OLD_QUESTION_BANK = [
   {
     id: 1,
+    scoringDirection: "positive",
     question: "How would you describe your overall mood today?",
     options: ["Very Good", "Good", "Neutral", "Not Good", "Very Bad"],
   },
   {
     id: 2,
+    scoringDirection: "positive",
     question: "How well did you sleep last night?",
     options: ["Excellent", "Good", "Fair", "Poor", "Very Poor"],
   },
   {
     id: 3,
+    scoringDirection: "positive",
     question: "How energetic do you feel right now?",
     options: ["Very Energetic", "Energetic", "Moderate", "Low Energy", "Exhausted"],
   },
   {
     id: 4,
+    scoringDirection: "negative",
     question: "How stressed are you feeling?",
     options: ["Not at all", "A little", "Moderately", "Very", "Extremely"],
   },
@@ -35,6 +39,7 @@ const OLD_QUESTION_BANK = [
 
 const convertedNewQuestions = NEW_QUESTION_BANK.map((q: any, index: number) => ({
   id: index + 100,
+  scoringDirection: q.scoringDirection,
   question: q.text,
   options: [
     "Not at all",
@@ -46,7 +51,55 @@ const convertedNewQuestions = NEW_QUESTION_BANK.map((q: any, index: number) => (
 }));
 
 function shuffleArray<T>(array: T[]): T[] {
-  return [...array].sort(() => Math.random() - 0.5);
+  const shuffled = [...array];
+
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
+function getQuestionCount() {
+  return Math.random() < 0.5 ? 9 : 10;
+}
+
+const OLD_SCORE_MAP: Record<string, number> = {
+  "Very Good": 9,
+  Good: 7,
+  Neutral: 5,
+  "Not Good": 3,
+  "Very Bad": 1,
+  Excellent: 9,
+  Fair: 5,
+  Poor: 3,
+  "Very Poor": 1,
+  "Very Energetic": 9,
+  Energetic: 7,
+  Moderate: 5,
+  "Low Energy": 3,
+  Exhausted: 1,
+  "A little": 7,
+};
+
+const LIKERT_VALUE_MAP: Record<string, number> = {
+  "Not at all": 0,
+  Slightly: 1,
+  Moderately: 2,
+  Very: 3,
+  Extremely: 4,
+};
+
+function scoreAnswer(answer: string, direction: string) {
+  const likertValue = LIKERT_VALUE_MAP[answer];
+
+  if (typeof likertValue === "number") {
+    const directionalScore = direction === "positive" ? likertValue : 4 - likertValue;
+    return 1 + (directionalScore / 4) * 8;
+  }
+
+  return OLD_SCORE_MAP[answer] ?? null;
 }
 
 const MoodTest = () => {
@@ -54,10 +107,12 @@ const MoodTest = () => {
   const navigate = useNavigate();
 
   const questions = useMemo(() => {
+    const questionCount = getQuestionCount();
+
     return shuffleArray([
       ...OLD_QUESTION_BANK,
       ...convertedNewQuestions,
-    ]).slice(0, 15);
+    ]).slice(0, questionCount);
   }, []);
 
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -84,12 +139,32 @@ const MoodTest = () => {
       setSaving(true);
 
       const answersForApi = Object.fromEntries(
-        questions.map((question) => [question.question, answers[question.id]])
+        questions.map((question) => [
+          `${question.scoringDirection}:${question.question}`,
+          answers[question.id],
+        ])
       );
+      const scoreValues = questions
+        .map((question) =>
+          scoreAnswer(answers[question.id], question.scoringDirection)
+        )
+        .filter((value): value is number => value !== null);
+      const assessmentScore =
+        scoreValues.length > 0
+          ? Math.round(
+              (scoreValues.reduce((sum, value) => sum + value, 0) /
+                scoreValues.length) *
+                10
+            ) / 10
+          : undefined;
 
-      const assessment = await createMoodAssessment(answersForApi, notes);
+      const assessment = await createMoodAssessment(
+        answersForApi,
+        notes,
+        assessmentScore
+      );
       const scoreText =
-        assessment.ml?.score !== undefined ? ` ML score: ${assessment.ml.score}.` : "";
+        assessment.ml?.score !== undefined ? ` Mood score: ${assessment.ml.score}.` : "";
 
       toast({
         title: "Assessment Complete",
