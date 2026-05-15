@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Brain, User } from "lucide-react";
+import { Brain, Menu, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 
@@ -8,6 +8,15 @@ const Navbar = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const links = [
+    { label: "Dashboard", path: "/dashboard" },
+    { label: "Mood Test", path: "/mood-test" },
+    { label: "Journal", path: "/journal" },
+    { label: "Meditation", path: "/meditation" },
+    { label: "Tips", path: "/tips" },
+  ];
 
   return (
     <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-lg border-b border-border">
@@ -21,41 +30,21 @@ const Navbar = () => {
 
           {/* Links */}
           <nav className="hidden md:flex items-center gap-8">
-            <Link
-              to="/dashboard"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Dashboard
-            </Link>
-            <Link
-              to="/mood-test"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Mood Test
-            </Link>
-            <Link
-              to="/journal"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Journal
-            </Link>
-            <Link
-              to="/meditation"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Meditation
-            </Link>
-            <Link
-              to="/tips"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Tips
-            </Link>
+            {links.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground smooth-transition"
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
 
           {/* Right side */}
-          {!user ? (
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {!user ? (
+            <div className="hidden items-center gap-3 sm:flex">
               <Button variant="ghost" onClick={() => navigate("/login")}>
                 Login
               </Button>
@@ -113,9 +102,60 @@ const Navbar = () => {
                 </div>
               )}
             </div>
-          )}
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileOpen((value) => !value)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
       </div>
+
+      {mobileOpen && (
+        <div className="border-t border-border bg-background/95 px-4 py-4 shadow-lg backdrop-blur-lg md:hidden">
+          <nav className="flex flex-col gap-1">
+            {links.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          {!user && (
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:hidden">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMobileOpen(false);
+                  navigate("/login");
+                }}
+              >
+                Login
+              </Button>
+              <Button
+                onClick={() => {
+                  setMobileOpen(false);
+                  navigate("/signup");
+                }}
+              >
+                Sign Up
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </header>
   );
 };

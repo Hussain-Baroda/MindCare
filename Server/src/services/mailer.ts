@@ -13,14 +13,23 @@ export type CrisisEmailParams = {
 function getMailConfig() {
   const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const secure =
+    typeof process.env.SMTP_SECURE === "string"
+      ? process.env.SMTP_SECURE === "true"
+      : port === 465;
 
   if (!emailUser || !emailPass) {
-    console.error("[mailer] Missing EMAIL_USER/EMAIL_PASS in .env");
+    throw new Error("Missing SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASS in environment");
   }
 
   return {
     emailUser,
     emailPass,
+    host,
+    port,
+    secure,
   };
 }
 
@@ -28,7 +37,19 @@ function getMailConfig() {
  * Create transporter ONLY when needed
  */
 function getTransporter() {
-  const { emailUser, emailPass } = getMailConfig();
+  const { emailUser, emailPass, host, port, secure } = getMailConfig();
+
+  if (host) {
+    return nodemailer.createTransport({
+      host,
+      port: port || 587,
+      secure,
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
+    });
+  }
 
   return nodemailer.createTransport({
     service: "gmail",
@@ -66,7 +87,7 @@ export function buildCrisisAlertEmailText(params: CrisisEmailParams) {
     "- MindCare is not an emergency service.",
     "- This alert can be a false alarm.",
     "",
-    "— MindCare",
+    "- MindCare",
   ].join("\n");
 }
 
@@ -130,7 +151,7 @@ export function buildCrisisAlertEmailHtml(params: CrisisEmailParams) {
                   MindCare is not an emergency service.
                 </p>
 
-                <p>— MindCare</p>
+                <p>- MindCare</p>
               </td>
             </tr>
           </table>
@@ -154,42 +175,35 @@ export async function sendCrisisEmail(
   paramsOrSubject: CrisisEmailParams | string,
   maybeText?: string
 ) {
-  try {
-    const transporter = getTransporter();
-    const { emailUser } = getMailConfig();
+  const transporter = getTransporter();
+  const { emailUser } = getMailConfig();
 
-    // verify smtp
-    await transporter.verify();
+  await transporter.verify();
 
-    console.log("[mailer] SMTP READY");
-    console.log("[mailer] Sending email to:", to);
+  console.log("[mailer] SMTP ready; sending email to:", to);
 
-    // old style
-    if (typeof paramsOrSubject === "string") {
-      const info = await transporter.sendMail({
-        from: `"MindCare" <${emailUser}>`,
-        to,
-        subject: paramsOrSubject,
-        text: maybeText || "",
-      });
-
-      console.log("[mailer] Email sent:", info.messageId);
-      return;
-    }
-
-    // new style
-    const params = paramsOrSubject;
-
+  if (typeof paramsOrSubject === "string") {
     const info = await transporter.sendMail({
       from: `"MindCare" <${emailUser}>`,
       to,
-      subject: buildCrisisAlertEmailSubject(params.userName),
-      text: buildCrisisAlertEmailText(params),
-      html: buildCrisisAlertEmailHtml(params),
+      subject: paramsOrSubject,
+      text: maybeText || "",
     });
 
     console.log("[mailer] Email sent:", info.messageId);
-  } catch (err) {
-    console.error("[mailer] Failed to send email:", err);
+    return info;
   }
+
+  const params = paramsOrSubject;
+
+  const info = await transporter.sendMail({
+    from: `"MindCare" <${emailUser}>`,
+    to,
+    subject: buildCrisisAlertEmailSubject(params.userName),
+    text: buildCrisisAlertEmailText(params),
+    html: buildCrisisAlertEmailHtml(params),
+  });
+
+  console.log("[mailer] Email sent:", info.messageId);
+  return info;
 }

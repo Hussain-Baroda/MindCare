@@ -177,10 +177,10 @@ const Tips = () => {
               {articles.map((article, index) => (
                 <div
                   key={index}
-                  className="glass-card p-8 rounded-xl hover-lift smooth-transition cursor-pointer animate-fade-in-up"
+                  className="glass-card rounded-xl p-5 hover-lift smooth-transition cursor-pointer animate-fade-in-up sm:p-8"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
                       {article.category}
                     </div>

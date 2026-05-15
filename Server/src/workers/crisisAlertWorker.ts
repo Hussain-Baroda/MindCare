@@ -2,73 +2,90 @@ import { PendingCrisisAlert } from "../models/PendingCrisisAlert.js";
 import { TrustedContact } from "../models/TrustedContact.js";
 import { sendCrisisEmail } from "../services/mailer.js";
 
-export function startCrisisAlertWorker() {
-  // run every 60 seconds
-  setInterval(async () => {
-    try {
-      const now = new Date();
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 60 * 1000;
+let isProcessing = false;
 
-      // find pending alerts that are due
-      const dueAlerts = await PendingCrisisAlert.find({
-        status: "pending",
-        sendAt: { $lte: now },
-      }).limit(25);
+export async function processDueCrisisAlerts() {
+  if (isProcessing) return;
+  isProcessing = true;
 
-      // process alerts one by one
-      for (const alert of dueAlerts) {
-        try {
-          // prevent duplicate processing
-          alert.status = "processing";
-          await alert.save();
+  try {
+    const now = new Date();
 
-          // get trusted contacts
-          const contacts = await TrustedContact.find({
-            userId: alert.userId,
-          }).limit(3);
+    const dueAlerts = await PendingCrisisAlert.find({
+      status: "pending",
+      sendAt: { $lte: now },
+    }).limit(25);
 
-          // if no contacts found
-          if (!contacts.length) {
-            console.log(
-              `[crisisAlertWorker] No contacts found for user ${alert.userId}`
-            );
+    for (const alert of dueAlerts) {
+      try {
+        alert.status = "processing";
+        alert.attempts = (alert.attempts || 0) + 1;
+        alert.lastError = "";
+        await alert.save();
 
-            alert.status = "failed";
-            await alert.save();
-            continue;
-          }
+        const contacts = await TrustedContact.find({
+          userId: alert.userId,
+        }).limit(3);
 
-          // send emails
-          await Promise.all(
-            contacts.map((contact) =>
-              sendCrisisEmail(contact.email, {
-                userName: alert.userName,
-                triggeredAt: alert.triggeredAt,
-                timezone: alert.timezone,
-                delaySeconds: alert.delaySeconds,
-              })
-            )
-          );
-
-          // mark as sent
-          alert.status = "sent";
-          await alert.save();
-
-          console.log(
-            `[crisisAlertWorker] Sent alert ${alert._id} to ${contacts.length} contact(s)`
-          );
-        } catch (err) {
-          console.error(
-            `[crisisAlertWorker] Failed alert ${alert._id}`,
-            err
-          );
-
-          // mark failed
+        if (!contacts.length) {
           alert.status = "failed";
+          alert.lastError = "No trusted contacts found";
           await alert.save();
+          console.error(
+            `[crisisAlertWorker] No contacts found for user ${alert.userId}`
+          );
+          continue;
         }
+
+        await Promise.all(
+          contacts.map((contact) =>
+            sendCrisisEmail(contact.email, {
+              userName: alert.userName,
+              triggeredAt: alert.triggeredAt,
+              timezone: alert.timezone,
+              delaySeconds: alert.delaySeconds,
+            })
+          )
+        );
+
+        alert.status = "sent";
+        alert.sentAt = new Date();
+        alert.lastError = "";
+        await alert.save();
+
+        console.log(
+          `[crisisAlertWorker] Sent alert ${alert._id} to ${contacts.length} contact(s)`
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[crisisAlertWorker] Failed alert ${alert._id}`, err);
+
+        if ((alert.attempts || 0) < MAX_ATTEMPTS) {
+          alert.status = "pending";
+          alert.sendAt = new Date(Date.now() + RETRY_DELAY_MS);
+        } else {
+          alert.status = "failed";
+        }
+        alert.lastError = message.slice(0, 500);
+        await alert.save();
       }
-    } catch (e) {
-      console.error("[crisisAlertWorker]", e);
     }
-  }, 60000); // 60 seconds
+  } catch (e) {
+    console.error("[crisisAlertWorker]", e);
+  } finally {
+    isProcessing = false;
+  }
+}
+
+export function startCrisisAlertWorker() {
+  processDueCrisisAlerts().catch((err) =>
+    console.error("[crisisAlertWorker] startup processing failed", err)
+  );
+  setInterval(() => {
+    processDueCrisisAlerts().catch((err) =>
+      console.error("[crisisAlertWorker] interval processing failed", err)
+    );
+  }, 10000);
 }

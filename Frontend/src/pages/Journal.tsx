@@ -182,7 +182,7 @@ const Journal = () => {
             </p>
           </div>
 
-          <div className="glass-card p-8 rounded-2xl animate-fade-in-up">
+          <div className="glass-card rounded-2xl p-4 animate-fade-in-up sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="title" className="text-lg">
@@ -209,14 +209,14 @@ const Journal = () => {
                   placeholder="Write freely... Let your thoughts flow without judgment."
                   value={entry}
                   onChange={(e) => setEntry(e.target.value)}
-                  className="min-h-96 text-base leading-relaxed"
+                  className="min-h-64 text-base leading-relaxed sm:min-h-96"
                 />
                 <p className="text-xs text-muted-foreground">
                   {entry.length} characters
                 </p>
               </div>
 
-              <div className="flex gap-4 pt-4">
+              <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
                 <Button
                   type="submit"
                   size="lg"
@@ -243,7 +243,7 @@ const Journal = () => {
 
           {/* Recent Entries */}
           <div className="mt-12 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-2xl font-semibold mb-2">Recent Entries</h2>
               <Button variant="outline" onClick={loadEntries} disabled={loading}>
                 {loading ? "Loading..." : "Refresh"}
@@ -264,7 +264,7 @@ const Journal = () => {
                   onClick={() => setSelected(e)}
                   className="w-full text-left glass-card p-6 rounded-xl hover-lift smooth-transition"
                 >
-                  <div className="flex items-start justify-between mb-2">
+                  <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                     <h3 className="font-semibold">{e.title}</h3>
                     <span className="text-sm text-muted-foreground">
                       {formatDate(e.createdAt)}
@@ -285,10 +285,10 @@ const Journal = () => {
           onMouseDown={() => setSelected(null)}
         >
           <div
-            className="w-full max-w-2xl bg-background rounded-xl border p-6"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border bg-background p-4 sm:p-6"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{selected.title}</h2>
                 <div className="text-sm text-muted-foreground mt-1">
@@ -296,7 +296,7 @@ const Journal = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
                   variant="destructive"
                   onClick={handleDeleteSelected}

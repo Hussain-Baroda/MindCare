@@ -16,6 +16,9 @@ const PendingCrisisAlertSchema = new mongoose.Schema(
     userName: { type: String, default: "A MindCare user" },
     timezone: { type: String, default: "IST" },
     delaySeconds: { type: Number, default: 30 },
+    attempts: { type: Number, default: 0 },
+    lastError: { type: String, default: "" },
+    sentAt: { type: Date },
   },
   { timestamps: true }
 );

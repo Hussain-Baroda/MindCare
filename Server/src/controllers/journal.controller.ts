@@ -9,9 +9,17 @@ import { CrisisSettings } from "../models/CrisisSettings.js";
 import { TrustedContact } from "../models/TrustedContact.js";
 import { PendingCrisisAlert } from "../models/PendingCrisisAlert.js";
 import { User } from "../models/User.js";
+import { processDueCrisisAlerts } from "../workers/crisisAlertWorker.js";
 
 async function scheduleJournalCrisisAlert(userId: string) {
-  const settings = await CrisisSettings.findOne({ userId });
+  const settings =
+    (await CrisisSettings.findOne({ userId })) ||
+    (await CrisisSettings.create({
+      userId,
+      enabled: true,
+      mode: "auto",
+      delaySeconds: 10,
+    }));
 
   const contacts = await TrustedContact.find({ userId }).limit(3);
   if (contacts.length === 0) return { status: "missing_contact" as const };
@@ -48,6 +56,12 @@ async function scheduleJournalCrisisAlert(userId: string) {
     timezone: "IST",
     delaySeconds,
   });
+
+  setTimeout(() => {
+    processDueCrisisAlerts().catch((err) =>
+      console.error("[journal] Failed to process scheduled crisis alert", err)
+    );
+  }, delaySeconds * 1000 + 500);
 
   return {
     status: "scheduled" as const,

@@ -1,13 +1,8 @@
 import {
-  LayoutDashboard,
   BookOpen,
   Heart,
   Brain,
   TrendingUp,
-  Lightbulb,
-  Trophy,
-  BarChart2,
-  Crown,
   User,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -25,6 +20,7 @@ import {
 } from "recharts";
 import { getDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
 import { getProfile, type UserProfile } from "@/lib/profile";
+import { AppShell } from "@/components/AppShell";
 
 function formatMinutes(minutes: number) {
   const roundedMinutes = Math.round((minutes || 0) * 10) / 10;
@@ -40,7 +36,7 @@ function formatMinutes(minutes: number) {
 const Dashboard = () => {
   const location = useLocation();
   const nav = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -112,18 +108,6 @@ const Dashboard = () => {
     }));
   }, [summary]);
 
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
-    { icon: Heart, label: "Mood Test", path: "/mood-test" },
-    { icon: BookOpen, label: "Journal", path: "/journal" },
-    { icon: Brain, label: "Meditation", path: "/meditation" },
-    { icon: Lightbulb, label: "Tips", path: "/tips" },
-    { icon: Trophy, label: "Achievements", path: "/achievements" },
-    { icon: BarChart2, label: "Analytics", path: "/analytics" },
-    { icon: Crown, label: "Leaderboard", path: "/leaderboard" },
-    { icon: SettingsIcon, label: "Profile", path: "/settings" },
-  ];
-
   const moodScoreDisplay = loadingSummary ? "..." : summary?.latestMoodScore ?? "--";
   const journalThisMonthDisplay = loadingSummary ? "..." : summary?.journalThisMonth ?? 0;
 
@@ -133,59 +117,8 @@ const Dashboard = () => {
     : formatMinutes(summary?.meditationMinutesThisWeek ?? 0);
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0">
-        <div className="p-6">
-          <Link to="/dashboard" className="flex items-center gap-2 mb-8">
-            <Brain className="w-8 h-8 text-primary" />
-            <span className="text-xl font-bold gradient-text">MindCare</span>
-          </Link>
-
-          <nav className="space-y-2">
-            {sidebarItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg smooth-transition ${
-                    isActive
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent"
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <header className="h-16 border-b border-border bg-card/50 backdrop-blur-lg flex items-center justify-between px-8">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              {user?.name} ({user?.email})
-            </div>
-
-            <button
-              onClick={() => {
-                logout();
-                nav("/login", { replace: true });
-              }}
-              className="text-sm text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Logout
-            </button>
-          </div>
-        </header>
-
-        <div className="p-8">
+    <AppShell title="Dashboard">
+        <div className="p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-8">
             <div className="animate-fade-in">
               <h2 className="text-3xl font-bold mb-2">Welcome back!</h2>
@@ -336,8 +269,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 

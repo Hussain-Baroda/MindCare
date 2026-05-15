@@ -295,7 +295,7 @@ const Settings = () => {
               <div className="text-sm text-muted-foreground">Loading...</div>
             ) : (
               <>
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="font-medium">Enable crisis alerts</div>
                     <div className="text-sm text-muted-foreground">
@@ -439,7 +439,7 @@ const Settings = () => {
                 contacts.map((c) => (
                   <div
                     key={c.id}
-                    className="rounded-lg border border-border p-4 flex items-start justify-between gap-4"
+                    className="flex flex-col gap-4 rounded-lg border border-border p-4 sm:flex-row sm:items-start sm:justify-between"
                   >
                     {editingId === c.id ? (
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -461,7 +461,7 @@ const Settings = () => {
                       </div>
                     )}
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       {editingId === c.id ? (
                         <>
                           <Button

@@ -1,34 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  BookOpen,
-  Heart,
-  Brain,
-  Lightbulb,
-  Trophy,
-  BarChart2,
   Crown,
   EyeOff,
   Eye,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import {
   getLeaderboard,
   getUserLeaderboardStatus,
   toggleLeaderboardVisibility,
 } from "@/lib/analytics";
 import type { LeaderboardEntry, UserLeaderboardStatus } from "@/lib/analytics";
-
-const sidebarItems = [
-  { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
-  { icon: Heart, label: "Mood Test", path: "/mood-test" },
-  { icon: BookOpen, label: "Journal", path: "/journal" },
-  { icon: Brain, label: "Meditation", path: "/meditation" },
-  { icon: Lightbulb, label: "Tips", path: "/tips" },
-  { icon: Trophy, label: "Achievements", path: "/achievements" },
-  { icon: BarChart2, label: "Analytics", path: "/analytics" },
-];
+import { AppShell } from "@/components/AppShell";
 
 const RANK_STYLES = [
   "text-yellow-500 font-bold text-lg",   // 1st
@@ -37,10 +19,6 @@ const RANK_STYLES = [
 ];
 
 const LeaderboardPage = () => {
-  const location = useLocation();
-  const nav = useNavigate();
-  const { user, logout } = useAuth();
-
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myStatus, setMyStatus] = useState<UserLeaderboardStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,54 +65,8 @@ const LeaderboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0">
-        <div className="p-6">
-          <Link to="/dashboard" className="flex items-center gap-2 mb-8">
-            <Brain className="w-8 h-8 text-primary" />
-            <span className="text-xl font-bold gradient-text">MindCare</span>
-          </Link>
-          <nav className="space-y-2">
-            {sidebarItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg smooth-transition ${
-                    isActive
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent"
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <header className="h-16 border-b border-border bg-card/50 backdrop-blur-lg flex items-center justify-between px-8">
-          <h1 className="text-2xl font-bold">Leaderboard</h1>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              {user?.name} ({user?.email})
-            </div>
-            <button
-              onClick={() => { logout(); nav("/login", { replace: true }); }}
-              className="text-sm text-muted-foreground hover:text-foreground smooth-transition"
-            >
-              Logout
-            </button>
-          </div>
-        </header>
-
-        <div className="p-8">
+    <AppShell title="Leaderboard">
+        <div className="p-4 sm:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto space-y-8">
             <div className="animate-fade-in">
               <h2 className="text-3xl font-bold mb-2">Wellness Leaderboard</h2>
@@ -152,7 +84,7 @@ const LeaderboardPage = () => {
             {/* Your status card */}
             {myStatus && (
               <div className="glass-card p-6 rounded-xl animate-fade-in-up">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Your Status</div>
                     <div className="text-xl font-bold">{myStatus.displayName}</div>
@@ -169,7 +101,7 @@ const LeaderboardPage = () => {
                   <button
                     onClick={handleToggle}
                     disabled={toggling}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium smooth-transition ${
+                    className={`flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium smooth-transition sm:w-auto ${
                       myStatus.isPublic
                         ? "border-red-300 text-red-600 hover:bg-red-50"
                         : "border-primary/40 text-primary hover:bg-primary/10"
@@ -237,8 +169,7 @@ const LeaderboardPage = () => {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 
