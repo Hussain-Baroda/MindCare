@@ -2,7 +2,12 @@ import mongoose, { type InferSchemaType, type Model } from "mongoose";
 
 const PendingCrisisAlertSchema = new mongoose.Schema(
   {
-    userId: { type: String, required: true, index: true },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     status: {
       type: String,
       enum: ["pending", "processing", "cancelled", "sent", "failed"],
