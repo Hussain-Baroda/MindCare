@@ -17,8 +17,14 @@ export function buildCrisisAlertEmailText(
 ) {
   const tz = params.timezone || "local time";
 
-  const when = new Date(params.triggeredAt).toLocaleString();
-
+  const when = new Date(params.triggeredAt).toLocaleString(
+    "en-IN",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Kolkata",
+    }
+  );
   return [
     "MindCare Crisis Alert",
     "",
@@ -56,6 +62,7 @@ export function buildCrisisAlertEmailHtml(
     {
       dateStyle: "medium",
       timeStyle: "short",
+      timeZone: "Asia/Kolkata",
     }
   );
 
