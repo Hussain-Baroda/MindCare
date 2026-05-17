@@ -50,32 +50,26 @@ function getMailConfig() {
  * Create transporter
  */
 function getTransporter() {
-  const { emailUser, emailPass, host, port, secure } =
-    getMailConfig();
+  const { emailUser, emailPass } = getMailConfig();
 
   console.log("[mailer] Creating transporter...");
 
-  if (host) {
-    console.log("[mailer] Using custom SMTP host");
-
-    return nodemailer.createTransport({
-      host,
-      port: port || 587,
-      secure,
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    });
-  }
-
-  console.log("[mailer] Using Gmail service");
-
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+
+    port: 587,
+
+    secure: false,
+
+    requireTLS: true,
+
     auth: {
       user: emailUser,
       pass: emailPass,
+    },
+
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 }

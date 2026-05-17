@@ -33,22 +33,41 @@ export async function processDueCrisisAlerts() {
           alert.status = "failed";
           alert.lastError = "No trusted contacts found";
           await alert.save();
+
           console.error(
             `[crisisAlertWorker] No contacts found for user ${alert.userId}`
           );
           continue;
         }
 
-        await Promise.all(
-          contacts.map((contact) =>
-            sendCrisisEmail(contact.email, {
+        console.log(
+          `[crisisAlertWorker] Sending alert ${alert._id} to ${contacts.length} contact(s)`
+        );
+
+        for (const contact of contacts) {
+          try {
+            console.log(
+              `[crisisAlertWorker] Sending email to ${contact.email}`
+            );
+
+            await sendCrisisEmail(contact.email, {
               userName: alert.userName,
               triggeredAt: alert.triggeredAt,
               timezone: alert.timezone,
               delaySeconds: alert.delaySeconds,
-            })
-          )
-        );
+            });
+
+            console.log(
+              `[crisisAlertWorker] Email sent successfully to ${contact.email}`
+            );
+          } catch (err) {
+            console.error(
+              `[crisisAlertWorker] Failed sending to ${contact.email}`,
+              err
+            );
+            throw err;
+          }
+        }
 
         alert.status = "sent";
         alert.sentAt = new Date();
@@ -56,7 +75,7 @@ export async function processDueCrisisAlerts() {
         await alert.save();
 
         console.log(
-          `[crisisAlertWorker] Sent alert ${alert._id} to ${contacts.length} contact(s)`
+          `[crisisAlertWorker] Alert ${alert._id} completed successfully`
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -68,6 +87,7 @@ export async function processDueCrisisAlerts() {
         } else {
           alert.status = "failed";
         }
+
         alert.lastError = message.slice(0, 500);
         await alert.save();
       }
@@ -83,6 +103,7 @@ export function startCrisisAlertWorker() {
   processDueCrisisAlerts().catch((err) =>
     console.error("[crisisAlertWorker] startup processing failed", err)
   );
+
   setInterval(() => {
     processDueCrisisAlerts().catch((err) =>
       console.error("[crisisAlertWorker] interval processing failed", err)
