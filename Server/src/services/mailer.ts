@@ -1,4 +1,6 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export type CrisisEmailParams = {
   userName: string;
@@ -6,73 +8,6 @@ export type CrisisEmailParams = {
   timezone?: string;
   delaySeconds: number;
 };
-
-/**
- * Read email config safely
- */
-function getMailConfig() {
-  const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-
-  const host = process.env.SMTP_HOST;
-
-  const port = process.env.SMTP_PORT
-    ? Number(process.env.SMTP_PORT)
-    : undefined;
-
-  const secure =
-    typeof process.env.SMTP_SECURE === "string"
-      ? process.env.SMTP_SECURE === "true"
-      : port === 465;
-
-  console.log("[mailer] Checking environment variables...");
-
-  if (!emailUser || !emailPass) {
-    console.error("[mailer] Missing SMTP credentials");
-
-    throw new Error(
-      "Missing SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASS"
-    );
-  }
-
-  console.log("[mailer] Email config loaded successfully");
-
-  return {
-    emailUser,
-    emailPass,
-    host,
-    port,
-    secure,
-  };
-}
-
-/**
- * Create transporter
- */
-function getTransporter() {
-  const { emailUser, emailPass } = getMailConfig();
-
-  console.log("[mailer] Creating transporter...");
-
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-
-    port: 587,
-
-    secure: false,
-
-    requireTLS: true,
-
-    auth: {
-      user: emailUser,
-      pass: emailPass,
-    },
-
-    tls: {
-      rejectUnauthorized: false,
-    },
-  });
-}
 
 /**
  * Plain text email
@@ -137,7 +72,7 @@ export function buildCrisisAlertEmailHtml(
       <tr>
         <td align="center">
           <table width="600" style="background:#fff; border-radius:10px; margin-top:20px;">
-            
+
             <tr>
               <td style="background:#ff4d4d; color:white; text-align:center; padding:20px;">
                 <h2 style="margin:0;">MindCare Crisis Alert</h2>
@@ -206,30 +141,25 @@ export async function sendCrisisEmail(
   try {
     console.log("[mailer] Starting sendCrisisEmail");
 
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("Missing RESEND_API_KEY");
+    }
+
     if (!to) {
       throw new Error("Trusted contact email is missing");
     }
 
     console.log("[mailer] Recipient:", to);
 
-    const transporter = getTransporter();
-
-    const { emailUser } = getMailConfig();
-
-    console.log("[mailer] Verifying SMTP connection...");
-
-    await transporter.verify();
-
-    console.log("[mailer] SMTP verified successfully");
-
     /**
      * SIMPLE EMAIL
      */
     if (typeof paramsOrSubject === "string") {
-      console.log("[mailer] Sending plain text email");
 
-      const info = await transporter.sendMail({
-        from: `"MindCare" <${emailUser}>`,
+      console.log("[mailer] Sending simple email with Resend");
+
+      const response = await resend.emails.send({
+        from: "MindCare <onboarding@resend.dev>",
         to,
         subject: paramsOrSubject,
         text: maybeText || "",
@@ -237,10 +167,10 @@ export async function sendCrisisEmail(
 
       console.log(
         "[mailer] Email sent successfully:",
-        info.messageId
+        response
       );
 
-      return info;
+      return response;
     }
 
     /**
@@ -250,24 +180,29 @@ export async function sendCrisisEmail(
 
     console.log("[mailer] Sending crisis alert email");
 
-    const info = await transporter.sendMail({
-      from: `"MindCare" <${emailUser}>`,
+    const response = await resend.emails.send({
+      from: "MindCare <onboarding@resend.dev>",
+
       to,
+
       subject: buildCrisisAlertEmailSubject(
         params.userName
       ),
+
       text: buildCrisisAlertEmailText(params),
+
       html: buildCrisisAlertEmailHtml(params),
     });
 
     console.log(
       "[mailer] Crisis email sent successfully:",
-      info.messageId
+      response
     );
 
-    return info;
+    return response;
 
   } catch (error) {
+
     console.error(
       "[mailer] FAILED TO SEND EMAIL:",
       error
