@@ -14,8 +14,16 @@ const HIGH_PATTERNS: Array<{ phrase: string; regex: RegExp }> = [
 ];
 
 export function assessRisk(text: string): { riskLevel: RiskLevel; reasons: string[] } {
-  const t = (text || "").toLowerCase();
+  const t = (text || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
   const reasons = HIGH_PATTERNS.filter((p) => p.regex.test(t)).map((p) => p.phrase);
+
+  console.log("[riskDetector] Incoming text:", text);
+  console.log("[riskDetector] Normalized text:", t);
+  console.log("[riskDetector] Reasons:", reasons);
 
   if (reasons.length > 0) return { riskLevel: "high", reasons };
 

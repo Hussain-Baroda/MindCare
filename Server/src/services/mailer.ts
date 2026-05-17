@@ -13,16 +13,29 @@ export type CrisisEmailParams = {
 function getMailConfig() {
   const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+
   const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+
+  const port = process.env.SMTP_PORT
+    ? Number(process.env.SMTP_PORT)
+    : undefined;
+
   const secure =
     typeof process.env.SMTP_SECURE === "string"
       ? process.env.SMTP_SECURE === "true"
       : port === 465;
 
+  console.log("[mailer] Checking environment variables...");
+
   if (!emailUser || !emailPass) {
-    throw new Error("Missing SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASS in environment");
+    console.error("[mailer] Missing SMTP credentials");
+
+    throw new Error(
+      "Missing SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASS"
+    );
   }
+
+  console.log("[mailer] Email config loaded successfully");
 
   return {
     emailUser,
@@ -34,12 +47,17 @@ function getMailConfig() {
 }
 
 /**
- * Create transporter ONLY when needed
+ * Create transporter
  */
 function getTransporter() {
-  const { emailUser, emailPass, host, port, secure } = getMailConfig();
+  const { emailUser, emailPass, host, port, secure } =
+    getMailConfig();
+
+  console.log("[mailer] Creating transporter...");
 
   if (host) {
+    console.log("[mailer] Using custom SMTP host");
+
     return nodemailer.createTransport({
       host,
       port: port || 587,
@@ -50,6 +68,8 @@ function getTransporter() {
       },
     });
   }
+
+  console.log("[mailer] Using Gmail service");
 
   return nodemailer.createTransport({
     service: "gmail",
@@ -63,8 +83,11 @@ function getTransporter() {
 /**
  * Plain text email
  */
-export function buildCrisisAlertEmailText(params: CrisisEmailParams) {
+export function buildCrisisAlertEmailText(
+  params: CrisisEmailParams
+) {
   const tz = params.timezone || "local time";
+
   const when = new Date(params.triggeredAt).toLocaleString();
 
   return [
@@ -94,13 +117,18 @@ export function buildCrisisAlertEmailText(params: CrisisEmailParams) {
 /**
  * HTML email
  */
-export function buildCrisisAlertEmailHtml(params: CrisisEmailParams) {
+export function buildCrisisAlertEmailHtml(
+  params: CrisisEmailParams
+) {
   const tz = params.timezone || "local time";
 
-  const when = new Date(params.triggeredAt).toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const when = new Date(params.triggeredAt).toLocaleString(
+    "en-IN",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  );
 
   const safeName = params.userName
     .replace(/&/g, "&amp;")
@@ -115,6 +143,7 @@ export function buildCrisisAlertEmailHtml(params: CrisisEmailParams) {
       <tr>
         <td align="center">
           <table width="600" style="background:#fff; border-radius:10px; margin-top:20px;">
+            
             <tr>
               <td style="background:#ff4d4d; color:white; text-align:center; padding:20px;">
                 <h2 style="margin:0;">MindCare Crisis Alert</h2>
@@ -123,6 +152,7 @@ export function buildCrisisAlertEmailHtml(params: CrisisEmailParams) {
 
             <tr>
               <td style="padding:20px; color:#333;">
+
                 <p>Hi,</p>
 
                 <p>
@@ -152,8 +182,10 @@ export function buildCrisisAlertEmailHtml(params: CrisisEmailParams) {
                 </p>
 
                 <p>- MindCare</p>
+
               </td>
             </tr>
+
           </table>
         </td>
       </tr>
@@ -163,47 +195,90 @@ export function buildCrisisAlertEmailHtml(params: CrisisEmailParams) {
 `;
 }
 
-export function buildCrisisAlertEmailSubject(userName: string) {
+export function buildCrisisAlertEmailSubject(
+  userName: string
+) {
   return `MindCare alert: please check in with ${userName}`;
 }
 
 /**
- * Main email sender
+ * MAIN EMAIL SENDER
  */
 export async function sendCrisisEmail(
   to: string,
   paramsOrSubject: CrisisEmailParams | string,
   maybeText?: string
 ) {
-  const transporter = getTransporter();
-  const { emailUser } = getMailConfig();
+  try {
+    console.log("[mailer] Starting sendCrisisEmail");
 
-  await transporter.verify();
+    if (!to) {
+      throw new Error("Trusted contact email is missing");
+    }
 
-  console.log("[mailer] SMTP ready; sending email to:", to);
+    console.log("[mailer] Recipient:", to);
 
-  if (typeof paramsOrSubject === "string") {
+    const transporter = getTransporter();
+
+    const { emailUser } = getMailConfig();
+
+    console.log("[mailer] Verifying SMTP connection...");
+
+    await transporter.verify();
+
+    console.log("[mailer] SMTP verified successfully");
+
+    /**
+     * SIMPLE EMAIL
+     */
+    if (typeof paramsOrSubject === "string") {
+      console.log("[mailer] Sending plain text email");
+
+      const info = await transporter.sendMail({
+        from: `"MindCare" <${emailUser}>`,
+        to,
+        subject: paramsOrSubject,
+        text: maybeText || "",
+      });
+
+      console.log(
+        "[mailer] Email sent successfully:",
+        info.messageId
+      );
+
+      return info;
+    }
+
+    /**
+     * CRISIS EMAIL
+     */
+    const params = paramsOrSubject;
+
+    console.log("[mailer] Sending crisis alert email");
+
     const info = await transporter.sendMail({
       from: `"MindCare" <${emailUser}>`,
       to,
-      subject: paramsOrSubject,
-      text: maybeText || "",
+      subject: buildCrisisAlertEmailSubject(
+        params.userName
+      ),
+      text: buildCrisisAlertEmailText(params),
+      html: buildCrisisAlertEmailHtml(params),
     });
 
-    console.log("[mailer] Email sent:", info.messageId);
+    console.log(
+      "[mailer] Crisis email sent successfully:",
+      info.messageId
+    );
+
     return info;
+
+  } catch (error) {
+    console.error(
+      "[mailer] FAILED TO SEND EMAIL:",
+      error
+    );
+
+    throw error;
   }
-
-  const params = paramsOrSubject;
-
-  const info = await transporter.sendMail({
-    from: `"MindCare" <${emailUser}>`,
-    to,
-    subject: buildCrisisAlertEmailSubject(params.userName),
-    text: buildCrisisAlertEmailText(params),
-    html: buildCrisisAlertEmailHtml(params),
-  });
-
-  console.log("[mailer] Email sent:", info.messageId);
-  return info;
 }
