@@ -9,7 +9,7 @@ let isProcessing = false;
 
 export async function processDueCrisisAlerts() {
 
-  console.log("[crisisAlertWorker] Worker running...");
+  // console.log("[crisisAlertWorker] Worker running...");
 
   if (isProcessing) {
     console.log("[crisisAlertWorker] Already processing");
@@ -22,10 +22,10 @@ export async function processDueCrisisAlerts() {
 
     const now = new Date();
 
-    console.log(
-      "[crisisAlertWorker] Current time:",
-      now.toISOString()
-    );
+    // console.log(
+    //   "[crisisAlertWorker] Current time:",
+    //   now.toISOString()
+    // );
 
     const dueAlerts = await PendingCrisisAlert.find({
       status: "pending",
@@ -34,9 +34,9 @@ export async function processDueCrisisAlerts() {
       .sort({ createdAt: 1 })
       .limit(25);
 
-    console.log(
-      `[crisisAlertWorker] Found ${dueAlerts.length} due alerts`
-    );
+    // console.log(
+    //   `[crisisAlertWorker] Found ${dueAlerts.length} due alerts`
+    // );
 
     for (const alert of dueAlerts) {
 
@@ -193,5 +193,5 @@ export function startCrisisAlertWorker() {
       )
     );
 
-  }, 10000);
+  }, 60000);
 }
